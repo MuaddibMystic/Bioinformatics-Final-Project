@@ -27,7 +27,7 @@ These represent 4 mock-treated control samples and 4 influenza A–infected samp
 
 ---
 
-### Downloading FASTQ Files
+## Downloading FASTQ Files
 
 Use **SRA Toolkit** to download the original FASTQ files:
 
@@ -43,7 +43,7 @@ SRR12485107_1.fastq
 ...
 SRR12485113_1.fastq
 
-####Quantification Directory Structure
+## Quantification Directory Structure
 
 After performing Salmon quantification, your working directory should include one folder per sample:
 SRR12485106_quant/quant.sf
@@ -57,5 +57,5 @@ SRR12485113_quant/quant.sf
 
 These quant.sf files are imported into tximport and later processed with DESeq2.
 
-#####Note:
+## Note:
 Raw FASTQ data and quantification files are intentionally excluded from this repository to keep the project lightweight and reproducible without exceeding storage limits. Follow the instructions above to reconstruct the dataset exactly as used in the analysis.
