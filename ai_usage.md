@@ -1,4 +1,4 @@
-AI Usage Documentation
+AI Usage Documentation:
 
 This project used ChatGPT for assistance with:
 
