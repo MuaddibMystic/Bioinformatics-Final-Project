@@ -1,0 +1,41 @@
+%%R
+library(fgsea)
+library(msigdbr)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+library(dplyr)
+
+clean_ids <- sub("\\..*$", "", rownames(res))
+
+symbol_map <- AnnotationDbi::select(
+  org.Hs.eg.db,
+  keys = clean_ids,
+  keytype = "ENSEMBL",
+  columns = "SYMBOL"
+)
+
+symbol_map <- symbol_map[!is.na(symbol_map$SYMBOL), ]
+symbol_map <- symbol_map[!duplicated(symbol_map$ENSEMBL), ]
+
+res_df <- as.data.frame(res)
+res_df$ENSEMBL <- clean_ids
+
+res_merged <- merge(res_df, symbol_map, by="ENSEMBL", all.x=TRUE)
+res_merged <- res_merged[!is.na(res_merged$SYMBOL), ]
+res_merged <- res_merged[!duplicated(res_merged$SYMBOL), ]
+
+rank_metric <- res_merged$stat
+names(rank_metric) <- res_merged$SYMBOL
+rank_metric <- sort(rank_metric, decreasing = TRUE)
+
+m_df <- msigdbr(species="Homo sapiens", collection="H")
+pathways <- split(m_df$gene_symbol, m_df$gs_name)
+
+set.seed(42)
+fgsea_res <- fgseaMultilevel(
+  pathways = pathways,
+  stats = rank_metric
+)
+
+fgsea_res <- fgsea_res[order(fgsea_res$padj), ]
+head(fgsea_res)
