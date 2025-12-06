@@ -1,0 +1,2 @@
+%%R
+plotMA(res, ylim=c(-5,5))
