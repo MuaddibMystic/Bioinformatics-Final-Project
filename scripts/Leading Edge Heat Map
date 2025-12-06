@@ -1,0 +1,95 @@
+%%R
+library(pheatmap)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+
+# 1. Make sure we have vsd and res
+# (if you restarted the runtime, re-run the DESeq2 section before this)
+
+# 2. Get top FGSEA pathway and its leading-edge SYMBOLS
+top_path <- fgsea_res$pathway[1]
+lead_syms <- unique(unlist(fgsea_res$leadingEdge[[1]]))
+
+cat("Top FGSEA pathway:", top_path, "\n")
+cat("Leading-edge genes (n):", length(lead_syms), "\n")
+
+# 3. Map VSD rownames (Ensembl-ish) -> SYMBOL
+vsd_mat <- assay(vsd)
+ens_vsd  <- sub("\\..*$", "", rownames(vsd_mat))  # strip any versions
+
+sym_map_vsd <- AnnotationDbi::select(
+  org.Hs.eg.db,
+  keys    = ens_vsd,
+  keytype = "ENSEMBL",
+  columns = "SYMBOL"
+)
+
+# Clean mapping
+sym_map_vsd <- sym_map_vsd[!is.na(sym_map_vsd$SYMBOL), ]
+sym_map_vsd <- sym_map_vsd[!duplicated(sym_map_vsd$ENSEMBL), ]
+
+# Align vsd rows with mapping
+idx <- match(sym_map_vsd$ENSEMBL, ens_vsd)
+vsd_sym <- vsd_mat[idx, , drop = FALSE]
+rownames(vsd_sym) <- sym_map_vsd$SYMBOL
+
+# 4. Intersect leading-edge SYMBOLS with vsd SYMBOL rownames
+lead_syms_present <- intersect(lead_syms, rownames(vsd_sym))
+cat("Leading-edge genes present in VSD:", length(lead_syms_present), "\n")
+
+use_leading_edge <- TRUE
+
+if (length(lead_syms_present) < 2) {
+  cat("WARNING: Too few leading-edge genes overlap with VSD. Falling back to top DE genes.\n")
+  use_leading_edge <- FALSE
+}
+
+# 5. If no overlap, fall back to top 30 DE genes by |stat|
+if (use_leading_edge) {
+  sub_mat <- vsd_sym[lead_syms_present, , drop = FALSE]
+  heatmap_title <- paste0("Leading-edge heatmap: ", top_path)
+} else {
+  res_df <- as.data.frame(res)
+  res_df$ENSEMBL <- sub("\\..*$", "", rownames(res_df))
+
+  # Map DESeq2 Ensembl -> SYMBOL, align with vsd_sym
+  sym_map_res <- AnnotationDbi::select(
+    org.Hs.eg.db,
+    keys    = res_df$ENSEMBL,
+    keytype = "ENSEMBL",
+    columns = "SYMBOL"
+  )
+  sym_map_res <- sym_map_res[!is.na(sym_map_res$SYMBOL), ]
+  sym_map_res <- sym_map_res[!duplicated(sym_map_res$ENSEMBL), ]
+
+  res_merged <- merge(res_df, sym_map_res, by.x = "ENSEMBL", by.y = "ENSEMBL", all.x = TRUE)
+  res_merged <- res_merged[!is.na(res_merged$SYMBOL), ]
+  res_merged <- res_merged[!duplicated(res_merged$SYMBOL), ]
+
+  # pick top 30 by |stat|
+  res_merged <- res_merged[order(-abs(res_merged$stat)), ]
+  top_syms   <- head(res_merged$SYMBOL, 30)
+
+  top_syms_present <- intersect(top_syms, rownames(vsd_sym))
+
+  cat("Top DE genes present in VSD (fallback):", length(top_syms_present), "\n")
+
+  sub_mat <- vsd_sym[top_syms_present, , drop = FALSE]
+  heatmap_title <- "Heatmap of top DE genes (fallback)"
+}
+
+# 6. Column annotation by condition
+annotation <- data.frame(condition = coldata$condition)
+rownames(annotation) <- rownames(coldata)
+
+# 7. Plot heatmap
+pheatmap(
+  sub_mat,
+  scale = "row",
+  annotation_col = annotation,
+  clustering_distance_cols = "correlation",
+  clustering_distance_rows = "correlation",
+  show_rownames = FALSE,
+  fontsize_row = 6,
+  main = heatmap_title
+)
